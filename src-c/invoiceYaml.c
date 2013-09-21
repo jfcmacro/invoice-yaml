@@ -29,6 +29,10 @@ usage(char *progname) {
   exit(1);
 }
 
+enum state { start = 0, end = 13, error = 14 };
+
+typedef enum state state_t;
+
 int
 main(int argc, char *argv[]) {
   yaml_parser_t parser;
@@ -37,7 +41,9 @@ main(int argc, char *argv[]) {
   int cont = TRUE;
   pitem_t pitem = NULL;
   pinvoice_t pinvoice = NULL;
-  invoices_t invoces = NULL;
+  invoices_t invoices = NULL;
+  state_t state = start;
+  int retvalue = 0;
 
   if (argc != 2) {
     usage(argv[0]);
@@ -50,56 +56,194 @@ main(int argc, char *argv[]) {
 
   do {
     yaml_parser_parse(&parser, &event);
-    switch (event.type) {
-    case YAML_STREAM_START_EVENT:
-      fprintf(stdout, "STREAM-START\n");
+    switch (state) {
+    case start:
+      switch(event.type) {
+      case YAML_STREAM_START_EVENT:
+	state = 1;
+	break;
+      default:
+	state = error;
+	break;
+      }
       break;
-    case YAML_STREAM_END_EVENT:
-      fprintf(stdout, "STREAM-END\n");
+
+    case 1:
+      switch (event.type) {
+      case YAML_STREAM_END_EVENT:
+	state = end;
+	break;
+      case YAML_DOCUMENT_START_EVENT:
+	state = 2;
+	break;
+      default:
+	state = error;
+      }
+      break;
+
+    case 2: 
+      switch (event.type) {
+      case YAML_SEQUENCE_START_EVENT:
+	state = 3;
+	break;
+      case YAML_DOCUMENT_END_EVENT:
+	state = 1;
+	break;
+
+      default:
+	state = error;
+	break;
+      }
+      break;
+
+    case 3:
+      switch(event.type) {
+      case YAML_MAPPING_START_EVENT:
+	state = 4;
+	pinvoice = (pinvoice_t) malloc(sizeof(pinvoice_t));
+	invoices = g_slist_append(invoices, pinvoice);
+	break;
+      case YAML_SEQUENCE_END_EVENT:
+	state = 2;
+	break;
+      }
+      break;
+
+    case 4:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	if (strcmp(event.data.scalar.value, "invoice") == 0) {
+	  state = 5;
+	}
+	if (strcmp(event.data.scalar.value, "client") == 0) {
+	  state = 6;
+	}
+	if (strcmp(event.data.scalar.value, "items") == 0) {
+	  pinvoice->items = NULL;
+	  state = 7;
+	}
+      }
+      break;
+
+    case 5:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	pinvoice->id = atoi(event.data.scalar.value);
+	state = 4;
+	break;
+      default:
+	state = error;
+      }
+      break;
+
+    case 6:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	pinvoice->name = (char *) malloc(sizeof(char) * 
+					 (event.data.scalar.length + 1));
+	strcpy(pinvoice->name, event.data.scalar.value);
+	pinvoice->name[event.data.scalar.length] = '\0';
+	state = 4;
+	break;
+
+      default:
+	state = error;
+      }
+      break;
+
+    case 7:
+      switch(event.type) {
+      case YAML_SEQUENCE_START_EVENT:
+	state = 8;
+	break;
+      case YAML_MAPPING_END_EVENT:
+	state = 6;
+      default:
+	state = error;
+	break;
+      }
+      break;
+
+    case 8:
+      switch(event.type) {
+      case YAML_MAPPING_START_EVENT:
+	pitem = (pitem_t) malloc(sizeof(item_t));
+	pinvoice->items = g_slist_append(pinvoice->items, pitem);
+	state = 9;
+	break;
+      case YAML_SEQUENCE_END_EVENT:
+	state = 7;
+	break;
+      default:
+	state = error;
+	break;
+      }
+      break;
+
+    case 9:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	if (strcmp(event.data.scalar.value, "item") == 0) {
+	  state = 10;
+	}
+	if (strcmp(event.data.scalar.value, "unitvalue") == 0) {
+	  state = 11;
+	}
+	if (strcmp(event.data.scalar.value, "units") == 0) {
+	  state = 12;
+	}
+	break;
+      default:
+	state = error;
+	break;
+      }
+      break;
+
+    case 10:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	pitem->id = atoi(event.data.scalar.value);
+	state = 9;
+	break;
+      default:
+	state = error;
+      }
+      break;
+    
+    case 11:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	pitem->valueUnit = atof(event.data.scalar.value);
+	state = 9;
+	break;
+      default:
+	state = error;
+      }
+      break;
+    
+    case 12:
+      switch(event.type) {
+      case YAML_SCALAR_EVENT:
+	pitem->units = atoi(event.data.scalar.value);
+	state = 9;
+	break;
+      default:
+	state = error;
+      }
+      break;
+
+    case end:
       cont = FALSE;
       break;
-    case YAML_DOCUMENT_START_EVENT:
-      fprintf(stdout, "DOCUMENT-START\n");
-      break;
-    case YAML_DOCUMENT_END_EVENT:
-      fprintf(stdout, "DOCUMENT-END\n");
-      break;
-    case YAML_ALIAS_EVENT:
-      fprintf(stdout, "ALIAS\n");
-      break;
-    case YAML_SCALAR_EVENT:
-      fprintf(stdout, "SCALAR\n");
-      fprintf(stdout, "anchor: %s tag: %s value: %s\n",
-	      event.data.scalar.anchor,
-	      event.data.scalar.tag,
-	      event.data.scalar.value);
-      break;
-    case YAML_SEQUENCE_START_EVENT:
-      fprintf(stdout, "SEQUENCE-START\n");
-      fprintf(stdout, "anchor: %s tag: %s\n",
-	      event.data.sequence_start.anchor,
-	      event.data.sequence_start.tag);
-      break;
-    case YAML_SEQUENCE_END_EVENT:
-      fprintf(stdout, "SEQUENCE-END\n");
-      break;
-    case YAML_MAPPING_START_EVENT:
-      fprintf(stdout, "MAPPING-START\n");
-      fprintf(stdout, "anchor: %s tag: %s\n",
-	      event.data.mapping_start.anchor,
-	      event.data.mapping_start.tag);
-      break;
-    case YAML_MAPPING_END_EVENT:
-      fprintf(stdout, "MAPPING-END\n");
-      break;
-    default:
-      fprintf(stdout, "Unknown event: %d\n", event.type);
+
+    case error:
+      cont = FALSE;
+      retvalue = 1;
       break;
     }
-    
     yaml_event_delete(&event);
   } while (cont);
 
   yaml_parser_delete(&parser);
-  return 0;
+  return retvalue;
 }
