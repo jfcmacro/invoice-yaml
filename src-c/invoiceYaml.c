@@ -1,3 +1,14 @@
+/*
+ * Author: Juan Francisco Cardona Mc'Cormick
+ * Date:   20/09/2013
+ *
+ * Purpose: To show how to write an parser for YAML file
+ *
+ * History of Modifications:
+ * 27/09/2013 - Correcting some errors and adding a procesing
+ *              for each invoice.
+ */
+
 #include <yaml.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,17 +22,15 @@ struct item {
 
 typedef struct item item_t;
 typedef struct item* pitem_t;
-typedef struct GSList *items_t;
 
 struct invoice {
   int id;
   char* name;
-  items_t *items;
+  GSList* items;
 };
 
 typedef struct invoice invoice_t;
 typedef struct invoice* pinvoice_t;
-typedef GSList* invoices_t;
 
 static void
 usage(char *progname) {
@@ -29,28 +38,54 @@ usage(char *progname) {
   exit(1);
 }
 
-enum state { start = 0, end = 13, error = 14 };
+// I guess this is too pedantic, but to drop all warnings requerided that
+// level.
+enum state { start = 0, one, two, three, four, five, six, seven, eight,
+	     nine, ten, eleven, twelve,
+	     end = 13, error = 14 };
 
 typedef enum state state_t;
 
-int
-main(int argc, char *argv[]) {
+float valueItems(pitem_t item) {
+  return (float) item->units * item->valueUnit;
+}
+
+void showItem(pitem_t item) {
+  fprintf(stdout, "%5d\t%8.2f\t%5d\t%8.2f\n",
+	  item->id, item->valueUnit, item->units,
+	  valueItems(item));
+}
+
+void showInvoice(pinvoice_t invoice) {
+  GList* node = NULL;
+  fprintf(stdout, "ID: %d\nNAME: %s\n", invoice->id, invoice->name);
+  float total = 0.0f;
+  for (node = invoice->items; node; node = node->next) {
+    total += valueItems((pitem_t) node->data);
+    showItem((pitem_t) node->data);
+  }
+  fprintf(stdout, "\t\t\t\t%8.2f\n", total);
+}
+
+enum state showErrorState(enum state curr_state, 
+			  yaml_event_type_t event_type) {
+  fprintf(stderr, "Error at state %d found event: %d\n", 
+	  curr_state, event_type);
+  return error;
+}
+
+GSList* parsingInvoicesFile(const char* filename) {
   yaml_parser_t parser;
   yaml_event_t event;
   FILE *infile;
   int cont = TRUE;
   pitem_t pitem = NULL;
   pinvoice_t pinvoice = NULL;
-  invoices_t invoices = NULL;
+  GSList* invoices = NULL;
   state_t state = start;
-  int retvalue = 0;
 
-  if (argc != 2) {
-    usage(argv[0]);
-  }
+  infile = fopen(filename, "r");
 
-  infile = fopen(argv[1], "r");
-  
   yaml_parser_initialize(&parser);
   yaml_parser_set_input_file(&parser, infile);
 
@@ -60,175 +95,197 @@ main(int argc, char *argv[]) {
     case start:
       switch(event.type) {
       case YAML_STREAM_START_EVENT:
-	state = 1;
+	state = one;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 1:
+    case one:
       switch (event.type) {
       case YAML_STREAM_END_EVENT:
 	state = end;
 	break;
       case YAML_DOCUMENT_START_EVENT:
-	state = 2;
+	state = two;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
 
-    case 2: 
+    case two:
       switch (event.type) {
       case YAML_SEQUENCE_START_EVENT:
-	state = 3;
+	state = three;
 	break;
+
       case YAML_DOCUMENT_END_EVENT:
-	state = 1;
+	state = one;
 	break;
 
       default:
-	state = error;
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 3:
+    case three:
       switch(event.type) {
       case YAML_MAPPING_START_EVENT:
-	state = 4;
-	pinvoice = (pinvoice_t) malloc(sizeof(pinvoice_t));
+	state = four;
+	pinvoice = (pinvoice_t) malloc(sizeof(invoice_t));
 	invoices = g_slist_append(invoices, pinvoice);
 	break;
       case YAML_SEQUENCE_END_EVENT:
-	state = 2;
+	state = two;
+	break;
+      default:
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 4:
+    case four:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	if (strcmp(event.data.scalar.value, "invoice") == 0) {
-	  state = 5;
+	if (strcmp((char*)event.data.scalar.value,
+		   "invoice") == 0) {
+	  state = five;
 	}
-	if (strcmp(event.data.scalar.value, "client") == 0) {
-	  state = 6;
+	if (strcmp((char*)event.data.scalar.value, "client") == 0) {
+	  state = six;
 	}
-	if (strcmp(event.data.scalar.value, "items") == 0) {
+	if (strcmp((char *)event.data.scalar.value, "items") == 0) {
 	  pinvoice->items = NULL;
-	  state = 7;
+	  state = seven;
 	}
+	break;
+
+      default:
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
 
-    case 5:
+    case five:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	pinvoice->id = atoi(event.data.scalar.value);
-	state = 4;
+	pinvoice->id = atoi((char*)event.data.scalar.value);
+	state = four;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
 
-    case 6:
+    case six:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	pinvoice->name = (char *) malloc(sizeof(char) * 
+	pinvoice->name = (char *) malloc(sizeof(char) *
 					 (event.data.scalar.length + 1));
-	strcpy(pinvoice->name, event.data.scalar.value);
+	strcpy(pinvoice->name, (char*) event.data.scalar.value);
 	pinvoice->name[event.data.scalar.length] = '\0';
-	state = 4;
+	state = four;
 	break;
 
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
 
-    case 7:
+    case seven:
       switch(event.type) {
       case YAML_SEQUENCE_START_EVENT:
-	state = 8;
+	state = eight;
 	break;
       case YAML_MAPPING_END_EVENT:
-	state = 6;
+	state = three;
+	break;
+
       default:
-	state = error;
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 8:
+    case eight:
       switch(event.type) {
       case YAML_MAPPING_START_EVENT:
 	pitem = (pitem_t) malloc(sizeof(item_t));
 	pinvoice->items = g_slist_append(pinvoice->items, pitem);
-	state = 9;
+	state = nine;
 	break;
       case YAML_SEQUENCE_END_EVENT:
-	state = 7;
+	state = seven;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 9:
+    case nine:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	if (strcmp(event.data.scalar.value, "item") == 0) {
-	  state = 10;
+	if (strcmp((char *) event.data.scalar.value, "item") == 0) {
+	  state = ten;
 	}
-	if (strcmp(event.data.scalar.value, "unitvalue") == 0) {
-	  state = 11;
+	if (strcmp((char *) event.data.scalar.value, "unitvalue") == 0) {
+	  state = eleven;
 	}
-	if (strcmp(event.data.scalar.value, "units") == 0) {
-	  state = 12;
+	if (strcmp((char *) event.data.scalar.value, "units") == 0) {
+	  state = twelve;
 	}
 	break;
+      case YAML_MAPPING_END_EVENT:
+	state = eight;
+	break;
+
       default:
-	state = error;
+	state = showErrorState(state, event.type);
 	break;
       }
       break;
 
-    case 10:
+    case ten:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	pitem->id = atoi(event.data.scalar.value);
-	state = 9;
+	pitem->id = atoi((char*)event.data.scalar.value);
+	state = nine;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
-    
-    case 11:
+
+    case eleven:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	pitem->valueUnit = atof(event.data.scalar.value);
-	state = 9;
+	pitem->valueUnit = atof((char *) event.data.scalar.value);
+	state = nine;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
-    
-    case 12:
+
+    case twelve:
       switch(event.type) {
       case YAML_SCALAR_EVENT:
-	pitem->units = atoi(event.data.scalar.value);
-	state = 9;
+	pitem->units = atoi((char*)event.data.scalar.value);
+	state = nine;
 	break;
       default:
-	state = error;
+	state = showErrorState(state, event.type);
+	break;
       }
       break;
 
@@ -238,12 +295,28 @@ main(int argc, char *argv[]) {
 
     case error:
       cont = FALSE;
-      retvalue = 1;
+      return NULL;
       break;
     }
     yaml_event_delete(&event);
   } while (cont);
 
   yaml_parser_delete(&parser);
-  return retvalue;
+  return invoices;
+}
+
+int
+main(int argc, char *argv[]) {
+  GSList *invoices, *node;
+
+  if (argc != 2) {
+    usage(argv[0]);
+  }
+
+  invoices = parsingInvoicesFile(argv[1]);
+
+  for (node = invoices; node; node = node->next) {
+    showInvoice((pinvoice_t) node->data);
+  }
+  return 0;
 }
