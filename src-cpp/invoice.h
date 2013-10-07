@@ -36,6 +36,9 @@ class invoice {
   ~invoice();
   void addItem(item);
   i_items getItems();
+  i_items getLastItem();
+  string& getName() const;
+  int getId() const;
   void setName(string& name);
   void setId(string& id);
  private:

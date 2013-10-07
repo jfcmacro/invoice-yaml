@@ -64,5 +64,16 @@ usage(const char* name) {
 int
 main(int argc, char *argv[]) {
 
+  if (argc != 2) {
+    usage(argv[0]);
+  }
+  invoices& inv = parserInvoicesFile(argv[1]);
+  
+  for(i_invoices it = inv.begin();
+      it != inv.end();
+      ++it) {
+    cout << (*it).getId() << endl;
+    cout << (*it).getName() << endl;
+  }
   return 0;
 }

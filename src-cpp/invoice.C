@@ -62,8 +62,22 @@ void invoice::addItem(item i) {
   items.push_back(i);
 }
 
+string&
+invoice::getName() const {
+  return *(this->name);
+}
+
+int
+invoice::getId() const {
+  return this->id;
+}
+
 i_items invoice::getItems() {
   return items.begin();
+}
+
+i_items invoice::getLastItem() {
+  return items.end();
 }
 
 void invoice::setName(string& name) {
