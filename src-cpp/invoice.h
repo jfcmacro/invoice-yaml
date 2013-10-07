@@ -2,37 +2,49 @@
 #define INVOICE_H
 #include <string>
 #include <vector>
+#include <iostream>
+#include <sstream>
 
 using namespace std;
 
-
 class item {
-
+ public:
   item(int id, float valUnit, int units);
+  item();
   ~item();
 
   int getId() const;
   float getValUnit() const;
   int getUnits() const;
   float getCostItem() const;
-private:
+  void setId(string& id);
+  void setValUnit(string& id);
+  void setUnits(string& id);
+ private:
   int id;
   float valueUnits;
   int units;
 };
 
-class invoice {
+typedef vector< item > items_t;
+typedef vector< item >::iterator i_items;
 
+class invoice {
+ public:
+  invoice();
   invoice(int id, char *name);
   ~invoice();
   void addItem(item);
-
-private:
+  i_items getItems();
+  void setName(string& name);
+  void setId(string& id);
+ private:
   int id;
   string* name;
-  vector<item> items;
+  items_t items;
 };
 
-
+typedef vector< invoice > invoices;
+typedef vector< invoice >::iterator i_invoices;
 
 #endif
