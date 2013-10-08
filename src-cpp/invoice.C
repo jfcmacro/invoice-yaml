@@ -2,10 +2,6 @@
 
 item::item() : id(0), valueUnits(0.0f), units(0) { }
 
-item::item(int id, float valUnit, int units)
-  : id(id), valueUnits(valUnit), units(units)
-{ }
-
 item::~item() { }
 
 int item::getId() const {
@@ -45,17 +41,10 @@ void item::setUnits(string& id) {
   this->units = val;
 }
 
-invoice::invoice(int id, char* name) 
-  : id(id), items()
-{
-  this->name = new string(name);
-}
-
 invoice::invoice() 
   : id(0), items() { }
 
 invoice::~invoice() {
-  delete this->name;
 }
 
 void invoice::addItem(item i) {
@@ -64,7 +53,7 @@ void invoice::addItem(item i) {
 
 string&
 invoice::getName() const {
-  return *(this->name);
+  return *(new string(this->name));
 }
 
 int
@@ -81,7 +70,7 @@ i_items invoice::getLastItem() {
 }
 
 void invoice::setName(string& name) {
-  this->name = new string(name);
+  this->name = name;
 }
 
 void invoice::setId(string& id) {

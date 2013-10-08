@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <string>
 #include <cstdlib>
@@ -40,19 +41,19 @@ invoices&
 parserInvoicesFile(char *filename) {
   ifstream fin(filename);
 
-  invoices* invo = new invoices();
+  invoices* ivcs = new invoices();
 
   YAML::Parser parser(fin);
   YAML::Node doc;
 
   parser.GetNextDocument(doc);
   for (unsigned i = 0; i < doc.size(); i++) {
-    invoice invoice;
-    doc[i] >> invoice;
-    invo->push_back(invoice);
+    invoice ivc;
+    doc[i] >> ivc;
+    ivcs->push_back(ivc);
   }
 
-  return *invo;
+  return *ivcs;
 }
 
 void
@@ -72,8 +73,17 @@ main(int argc, char *argv[]) {
   for(i_invoices it = inv.begin();
       it != inv.end();
       ++it) {
-    cout << (*it).getId() << endl;
-    cout << (*it).getName() << endl;
+    cout << "ID: " << (*it).getId() << endl;
+    cout << "NAME: " << (*it).getName() << endl;
+    for(i_items itms = (*it).getItems();
+	itms != (*it).getLastItem();
+	++itms) {
+      cout << setw(5) << setfill(' ') << itms->getId()
+	   << '\t' << fixed << setw(6) << itms->getCostItem()
+	   << '\t' << setw(5) << setfill(' ') << itms->getUnits()
+	   << '\t' << fixed << setw(8) << setfill(' ') << 
+	(itms->getCostItem() * itms->getUnits()) << endl;
+    }
   }
   return 0;
 }

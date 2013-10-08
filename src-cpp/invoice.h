@@ -9,7 +9,6 @@ using namespace std;
 
 class item {
  public:
-  item(int id, float valUnit, int units);
   item();
   ~item();
 
@@ -32,7 +31,6 @@ typedef vector< item >::iterator i_items;
 class invoice {
  public:
   invoice();
-  invoice(int id, char *name);
   ~invoice();
   void addItem(item);
   i_items getItems();
@@ -43,7 +41,7 @@ class invoice {
   void setId(string& id);
  private:
   int id;
-  string* name;
+  string name;
   items_t items;
 };
 
